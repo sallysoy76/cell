@@ -12,58 +12,57 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700;800&family=Noto+Sans+KR:wght@400;700;900&display=swap');
         * { box-sizing: border-box; touch-action: none; }
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: #030712; color: #f8fafc; overflow: hidden; margin: 0; padding: 0; }
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #000000; color: #f8fafc; overflow: hidden; margin: 0; padding: 0; }
         .hud-font { font-family: 'Chakra Petch', monospace; }
-        .cyber-border { border: 1.5px solid #22d3ee; box-shadow: 0 0 10px rgba(34, 211, 238, 0.25); }
     </style>
 </head>
 <body class="w-screen h-screen flex flex-col justify-between bg-black select-none">
 
     <!-- 상단 사이버네틱 HUD 바 -->
-    <header class="w-full h-12 bg-slate-950/90 border-b border-cyan-500/40 px-6 flex justify-between items-center z-30 shadow-lg">
+    <header class="w-full h-11 bg-slate-950/90 border-b border-cyan-500/40 px-6 flex justify-between items-center z-30 shadow-lg">
         <div class="flex items-center space-x-4">
             <span class="hud-font font-black text-cyan-400 text-lg tracking-widest">RE: SCIENCE LAB</span>
-            <span class="hud-font text-amber-300 text-xs font-bold bg-amber-400/10 px-2.5 py-1 rounded border border-amber-400/30">
+            <span class="hud-font text-amber-300 text-xs font-bold bg-amber-400/10 px-2.5 py-0.5 rounded border border-amber-400/30">
                 단계: <span id="stage-text">1단계 (수정란)</span>
             </span>
         </div>
 
         <div class="flex items-center space-x-6 hud-font text-sm font-bold tracking-wider">
-            <div class="text-slate-300">ATP: <span id="score-text" class="text-amber-400 text-base">0000</span></div>
-            <div class="text-slate-300">CELLS: <span id="cells-text" class="text-cyan-400 text-base">1</span></div>
-            <div class="text-slate-300">TIME: <span id="time-text" class="text-amber-400 text-base">60.0</span></div>
+            <div class="text-slate-300">ATP: <span id="score-text" class="text-amber-400 text-base font-black">0000</span></div>
+            <div class="text-slate-300">CELLS: <span id="cells-text" class="text-cyan-400 text-base font-black">1</span></div>
+            <div class="text-slate-300">TIME: <span id="time-text" class="text-amber-400 text-base font-black">60.0</span></div>
         </div>
     </header>
 
-    <!-- 메인 시뮬레이션 인터페이스 -->
+    <!-- 메인 시뮬레이션 영역 -->
     <main class="relative flex-1 w-full h-full overflow-hidden flex items-center justify-center">
-        <!-- 비디오 요소 (숨김 후 캔버스에 직접 반투명 렌더링) -->
+        <!-- 웹캠 비디오 (숨김 처리 후 캔버스 배경에 어둡게 직접 렌더링) -->
         <video id="webcam" class="hidden" playsinline autoplay muted></video>
 
-        <!-- 메인 캔버스 -->
+        <!-- 전체 시뮬레이션 캔버스 -->
         <canvas id="simCanvas" class="w-full h-full block"></canvas>
 
-        <!-- 게임 시작 안내 모달 -->
-        <div id="start-modal" class="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-40">
+        <!-- 시작 모달 팝업 -->
+        <div id="start-modal" class="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-40">
             <div class="flex flex-col items-center text-center p-8 max-w-lg">
-                <div class="text-cyan-400 text-3xl mb-2 animate-bounce">⏳</div>
-                <h2 class="text-2xl font-black text-white mb-3 tracking-wide drop-shadow-[0_0_12px_rgba(34,211,238,0.8)]">
+                <div class="text-cyan-400 text-4xl mb-3">⏳</div>
+                <h2 class="text-2xl font-black text-white mb-3 tracking-wide drop-shadow-[0_0_15px_rgba(34,211,238,0.9)]">
                     체세포 분열 & 개체 성장 챌린지
                 </h2>
                 <p class="text-xs text-slate-300 leading-relaxed mb-6 font-medium">
                     세포가 자라나면 <span class="text-cyan-300 font-bold">검지로 슬라이스</span>하여 세포 수를 늘리세요!<br>
                     세포 분열이 진행될수록 <span class="text-amber-300 font-bold">[수정란 → 배아 → 태아 → 어린이 → 성인]</span>으로 개체가 커지며 공간이 넓어집니다.<br>
-                    세포 사이 틈새에 <span class="text-rose-400 font-bold">모세혈관을 집어넣어</span> 최대 ATP를 생산하세요!
+                    우측 렉에서 <span class="text-rose-400 font-bold">엄지·검지로 혈관을 끌어와</span> 세포 틈새에 배치하여 최대 ATP를 생산하세요!
                 </p>
-                <button onclick="startGame()" class="px-8 py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black rounded-full shadow-[0_0_20px_rgba(34,211,238,0.6)] transition active:scale-95">
+                <button onclick="startGame()" class="px-8 py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black rounded-full shadow-[0_0_20px_rgba(34,211,238,0.7)] transition active:scale-95 text-sm">
                     🚀 게임 시작하기 (S / Touch / Click)
                 </button>
             </div>
         </div>
     </main>
 
-    <!-- 하단 상태 및 제어 바 -->
-    <footer class="w-full h-9 bg-slate-950/90 border-t border-cyan-500/30 px-4 flex justify-between items-center text-[11px] z-30 text-slate-400">
+    <!-- 하단 상태 및 컨트롤 바 -->
+    <footer class="w-full h-8 bg-slate-950/90 border-t border-cyan-500/30 px-4 flex justify-between items-center text-[11px] z-30 text-slate-400">
         <div class="flex space-x-2">
             <button onclick="startGame()" class="bg-cyan-950/60 border border-cyan-500/50 text-cyan-300 px-3 py-0.5 rounded font-bold hover:bg-cyan-900">시작 (S)</button>
             <button onclick="resetGame()" class="bg-slate-900 border border-slate-700 text-slate-300 px-3 py-0.5 rounded font-bold hover:bg-slate-800">리셋 (R)</button>
@@ -93,9 +92,9 @@
         let lastSliceTime = 0;
         let draggingVessel = null;
 
-        // 인벤토리 설정
+        // 우측 혈관 인벤토리 슬롯 (4개)
         const inventory = {
-            width: 70,
+            width: 65,
             slots: 4,
             items: [true, true, true, true]
         };
@@ -117,11 +116,12 @@
             placedVessels = [];
             draggingVessel = null;
 
+            // 초기 수정란 1개
             cells = [{
-                x: canvas.width * 0.45,
+                x: canvas.width * 0.43,
                 y: canvas.height * 0.5,
-                radius: 55,
-                growthRate: 0.05,
+                radius: 52,
+                growthRate: 0.04,
                 maxRadius: 75,
                 vx: 0,
                 vy: 0,
@@ -147,7 +147,7 @@
                     timeLeft = 0;
                     clearInterval(timerId);
                     isPlaying = false;
-                    alert(`🏁 탐구 종료!\n생성된 ATP: ${Math.floor(score)}\n최종 세포 수: ${cells.length}개`);
+                    alert(`⏰ 탐구 종료!\n최종 생산 ATP: ${Math.floor(score)}\n세포 수: ${cells.length}개\n배치된 혈관 수: ${placedVessels.length}개`);
                     startModal.classList.remove('hidden');
                 }
                 document.getElementById('time-text').innerText = timeLeft.toFixed(1);
@@ -156,8 +156,8 @@
 
         function updateHUD() {
             const stageNames = ["1단계 (수정란)", "2단계 (배아)", "3단계 (태아)", "4단계 (어린이)", "5단계 (성인)"];
-            if (cells.length >= 20) stage = 5;
-            else if (cells.length >= 13) stage = 4;
+            if (cells.length >= 18) stage = 5;
+            else if (cells.length >= 12) stage = 4;
             else if (cells.length >= 7) stage = 3;
             else if (cells.length >= 3) stage = 2;
             else stage = 1;
@@ -166,6 +166,12 @@
             document.getElementById('cells-text').innerText = cells.length;
             document.getElementById('score-text').innerText = String(Math.floor(score)).padStart(4, '0');
         }
+
+        // 키보드 단축키 지원 (S: 시작, R: 리셋)
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 's' || e.key === 'S' || e.key === 'ㄴ') startGame();
+            if (e.key === 'r' || e.key === 'R' || e.key === 'ㄱ') resetGame();
+        });
 
         // MediaPipe Hands 설정
         const hands = new Hands({
@@ -207,23 +213,23 @@
             camStatus.innerText = "웹캠: 권한 필요";
         });
 
-        // 물리 연산 & 제스처 인터랙션
+        // 물리 연산 및 인터랙션 처리
         function updatePhysics() {
-            let cx = canvas.width * 0.45;
+            let cx = canvas.width * 0.43;
             let cy = canvas.height * 0.5;
             let baseRadiusX = canvas.width * 0.22;
-            let baseRadiusY = canvas.height * 0.35;
+            let baseRadiusY = canvas.height * 0.36;
             let scale = 0.75 + (stage - 1) * 0.08;
             let currentRX = baseRadiusX * scale;
             let currentRY = baseRadiusY * scale;
 
-            // 인벤토리 영역 좌표 계산
-            let invX = canvas.width - 120;
+            // 우측 인벤토리 위치
+            let invX = canvas.width - 110;
             let invY = canvas.height * 0.15;
             let invH = canvas.height * 0.7;
             let slotH = invH / inventory.slots;
 
-            // 1. 손 제스처 처리 (자르기 & 잡고 끌기)
+            // 1. 손 제스처 처리 (엄지·검지 핀치 & 검지 슬라이스)
             if (handLandmarks) {
                 let indexTip = handLandmarks[8];
                 let thumbTip = handLandmarks[4];
@@ -234,11 +240,11 @@
                 let ty = thumbTip.y * canvas.height;
 
                 let pinchDist = Math.hypot(ix - tx, iy - ty);
-                let isPinching = pinchDist < 45;
+                let isPinching = pinchDist < 42;
                 let midX = (ix + tx) / 2;
                 let midY = (iy + ty) / 2;
 
-                // 핀치로 혈관 집기
+                // [인벤토리 잡기 & 드래그]
                 if (isPinching) {
                     if (!draggingVessel) {
                         for (let s = 0; s < inventory.slots; s++) {
@@ -257,30 +263,30 @@
                         draggingVessel.y = midY;
                     }
                 } else {
-                    // 손을 떼었을 때 혈관 배치 또는 원위치
+                    // 손을 떼었을 때 (Drop)
                     if (draggingVessel) {
                         let normalizedDist = Math.pow((draggingVessel.x - cx) / currentRX, 2) + Math.pow((draggingVessel.y - cy) / currentRY, 2);
-                        if (normalizedDist <= 0.95) {
+                        if (normalizedDist <= 0.92) {
                             placedVessels.push({ x: draggingVessel.x, y: draggingVessel.y, radius: 18 });
                         } else {
-                            inventory.items[draggingVessel.slotIndex] = true;
+                            inventory.items[draggingVessel.slotIndex] = true; // 개체 밖이면 인벤토리로 원복
                         }
                         draggingVessel = null;
                     }
                 }
 
-                // 검지 슬라이스로 세포 분열 (자르기)
+                // [검지 슬라이스로 세포 분열]
                 let now = Date.now();
                 if (now - lastSliceTime > 300) {
                     for (let i = cells.length - 1; i >= 0; i--) {
                         let c = cells[i];
                         let d = Math.hypot(ix - c.x, iy - c.y);
-                        if (d < c.radius && c.radius > 22 && cells.length < 36) {
+                        if (d < c.radius && c.radius > 20 && cells.length < 35) {
                             let newR = c.radius * 0.76;
                             c.radius = newR;
                             cells.push({
-                                x: c.x + (Math.random() - 0.5) * 25,
-                                y: c.y + (Math.random() - 0.5) * 25,
+                                x: c.x + (Math.random() - 0.5) * 20,
+                                y: c.y + (Math.random() - 0.5) * 20,
                                 radius: newR,
                                 growthRate: 0.04,
                                 maxRadius: 65,
@@ -295,23 +301,24 @@
                 }
             }
 
-            // 2. 세포 상태 판별 (혈관 공급 여부) 및 ATP 생산
+            // 2. 세포 상태 판별 (혈관 공급) 및 ATP 점수 계산
             cells.forEach(c => {
                 if (c.radius < c.maxRadius) c.radius += c.growthRate;
 
-                // 모세혈관 근처에 있으면 공급 상태 (청록색)
+                // 혈관 반경 내에 있으면 공급됨 (청록색)
                 c.isSupplied = placedVessels.some(v => Math.hypot(c.x - v.x, c.y - v.y) < 85);
 
                 if (isPlaying) {
                     if (c.isSupplied) {
-                        score += (0.15 + (1 / c.radius) * 6); // 분열되어 작을수록 표면적비 상승으로 폭발적 ATP 증가
+                        // 작게 분열될수록 표면적비 증가로 고득점
+                        score += (0.2 + (1 / c.radius) * 7.5);
                     } else {
                         score += 0.01;
                     }
                 }
             });
 
-            // 3. 세포 간 물리 완충 반발
+            // 3. 세포 간 완충 물리 반발
             for (let i = 0; i < cells.length; i++) {
                 for (let j = i + 1; j < cells.length; j++) {
                     let dx = cells[j].x - cells[i].x;
@@ -330,7 +337,7 @@
                 }
             }
 
-            // 4. 개체 타원형 경계 내 위치 제한
+            // 4. 개체 타원형 경계 내 세포 가두기
             cells.forEach(c => {
                 c.x += c.vx;
                 c.y += c.vy;
@@ -350,39 +357,45 @@
             updateHUD();
         }
 
-        // 렌더링 루프
+        // 전체 화면 그리기 루프
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 반투명 웹캠 피드 (배경)
+            // 1. 배경 어두운 비디오 렌더링 (거울 모드 반전)
             if (video.readyState === 4) {
                 ctx.save();
-                ctx.globalAlpha = 0.22;
+                ctx.globalAlpha = 0.28;
                 ctx.translate(canvas.width, 0);
                 ctx.scale(-1, 1);
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 ctx.restore();
             }
 
-            let cx = canvas.width * 0.45;
+            let cx = canvas.width * 0.43;
             let cy = canvas.height * 0.5;
             let baseRadiusX = canvas.width * 0.22;
-            let baseRadiusY = canvas.height * 0.35;
+            let baseRadiusY = canvas.height * 0.36;
             let scale = 0.75 + (stage - 1) * 0.08;
             let currentRX = baseRadiusX * scale;
             let currentRY = baseRadiusY * scale;
 
-            // 2. 개체 타원형 경계선
+            // 2. 개체 타원형 경계선 (네온 청록색)
             ctx.save();
             ctx.beginPath();
             ctx.ellipse(cx, cy, currentRX, currentRY, 0, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.45)';
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
             ctx.fill();
             ctx.strokeStyle = '#22d3ee';
             ctx.lineWidth = 3.5;
             ctx.shadowColor = '#22d3ee';
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 14;
             ctx.stroke();
+
+            // 개체 상단 라벨
+            ctx.fillStyle = '#67e8f9';
+            ctx.font = 'bold 12px Noto Sans KR';
+            ctx.textAlign = 'center';
+            ctx.fillText(document.getElementById('stage-text').innerText, cx, cy - currentRY - 8);
             ctx.restore();
 
             // 3. 배치된 혈관 렌더링
@@ -393,17 +406,17 @@
                 ctx.fillStyle = 'rgba(244, 63, 94, 0.12)';
                 ctx.fill();
 
-                // 혈관 코어
+                // 혈관 캡슐 코어
                 ctx.beginPath();
                 ctx.arc(v.x, v.y, v.radius, 0, Math.PI * 2);
                 ctx.fillStyle = '#e11d48';
                 ctx.fill();
                 ctx.strokeStyle = '#fda4af';
-                ctx.lineWidth = 3;
+                ctx.lineWidth = 2.5;
                 ctx.stroke();
 
                 ctx.beginPath();
-                ctx.arc(v.x, v.y, v.radius * 0.45, 0, Math.PI * 2);
+                ctx.arc(v.x, v.y, v.radius * 0.4, 0, Math.PI * 2);
                 ctx.fillStyle = '#881337';
                 ctx.fill();
             });
@@ -431,7 +444,7 @@
                 ctx.fill();
                 ctx.stroke();
 
-                // 핵
+                // 세포핵
                 ctx.beginPath();
                 ctx.arc(c.x, c.y, c.radius * 0.38, 0, Math.PI * 2);
                 ctx.fillStyle = c.isSupplied ? '#083344' : '#1e1b4b';
@@ -439,8 +452,8 @@
                 ctx.restore();
             });
 
-            // 5. 우측 인벤토리 렉 렌더링
-            let invX = canvas.width - 120;
+            // 5. 우측 인벤토리 렉 (슬롯 바)
+            let invX = canvas.width - 110;
             let invY = canvas.height * 0.15;
             let invH = canvas.height * 0.7;
             let slotH = invH / inventory.slots;
@@ -461,15 +474,15 @@
 
                 if (inventory.items[s]) {
                     ctx.beginPath();
-                    ctx.arc(slotCenterX, slotCenterY, 20, 0, Math.PI * 2);
+                    ctx.arc(slotCenterX, slotCenterY, 18, 0, Math.PI * 2);
                     ctx.fillStyle = '#e11d48';
                     ctx.fill();
                     ctx.strokeStyle = '#fda4af';
-                    ctx.lineWidth = 3;
+                    ctx.lineWidth = 2.5;
                     ctx.stroke();
 
                     ctx.beginPath();
-                    ctx.arc(slotCenterX, slotCenterY, 10, 0, Math.PI * 2);
+                    ctx.arc(slotCenterX, slotCenterY, 8, 0, Math.PI * 2);
                     ctx.fillStyle = '#881337';
                     ctx.fill();
                 }
@@ -488,7 +501,6 @@
 
             // 6. 손 관절 스켈레톤 및 포인터 시각화
             if (handLandmarks) {
-                // 스켈레톤 연결선
                 const connections = [
                     [0,1],[1,2],[2,3],[3,4],
                     [0,5],[5,6],[6,7],[7,8],
@@ -508,7 +520,6 @@
                     ctx.stroke();
                 });
 
-                // 관절 포인트
                 handLandmarks.forEach((p, idx) => {
                     let px = (1 - p.x) * canvas.width;
                     let py = p.y * canvas.height;

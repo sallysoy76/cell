@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>RE: SCIENCE LAB - 세포 분열 & 개체 성장</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- MediaPipe Hands & Camera Utils -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    * { touch-action: none; -webkit-user-select: none; user-select: none; }
+    body {
+      background-color: #030712;
+      color: #00ffcc;
+      font-family: 'VT323', 'Noto Sans KR', monospace;
+      overflow: hidden;
+    }
+    .font-pixel { font-family: 'Press Start 2P', monospace; }
+    .font-sans-kr { font-family: 'Noto Sans KR', sans-serif; }
+    .glow-cyan { text-shadow: 0 0 10px #00f0ff; }
+    .glow-yellow { text-shadow: 0 0 10px #ffeb3b; }
+    .glow-red { text-shadow: 0 0 10px #ff3366; }
+    
+    .scanline {
+      background: linear-gradient(
+        to bottom,
+        rgba(255,255,255,0),
+        rgba(255,255,255,0) 50%,
+        rgba(0, 0, 0, 0.35) 50%,
+        rgba(0, 0, 0, 0.35)
+      );
+      background-size: 100% 4px;
+    }
+  </style>
+</head>
+<body class="w-screen h-screen flex flex-col justify-between p-2">
+
+  <header class="w-full flex items-center justify-between border-b-2 border-teal-500/60 pb-2 px-2 z-10">
+    <div class="flex items-center gap-3">
+      <span class="font-pixel text-teal-400 text-base md:text-xl glow-cyan">RE: SCIENCE LAB</span>
+      <span class="text-yellow-400 font-bold text-xs md:text-base glow-yellow">단계: <span id="stageBadge" class="text-teal-300 font-extrabold">1단계 (수정란)</span></span>
+    </div>
+    
+    <div class="flex items-center gap-4 md:gap-6 font-pixel text-xs md:text-sm">
+      <div class="text-teal-300">ATP: <span id="scoreDisplay" class="text-amber-400 text-lg md:text-xl font-bold glow-yellow">0000</span></div>
+      <div class="text-cyan-300">CELLS: <span id="cellCountDisplay" class="text-teal-300 text-lg md:text-xl font-bold glow-cyan">1</span></div>
+      <div class="text-rose-400">TIME: <span id="timerDisplay" class="text-yellow-300 text-lg md:text-xl font-bold glow-yellow">30.0</span></div>
+    </div>
+  </header>
+
+  <main class="relative w-full flex-1 my-1 flex items-center justify-center overflow-hidden rounded-xl border-2 border-slate-800 bg-black">
+    <video id="webcam" class="hidden" playsinline muted></video>
+    <canvas id="gameCanvas" width="1280" height="720" class="w-full h-full object-contain"></canvas>
+    
+    <div class="absolute inset-0 pointer-events-none scanline opacity-30"></div>
+
+    <!-- 시작 대기 모달 -->
+    <div id="startOverlay" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-5 z-20 font-sans-kr backdrop-blur-xs">
+      <div class="text-center space-y-2 max-w-xl px-4">
+        <i class="fa-solid fa-dna text-5xl text-teal-400 glow-cyan animate-bounce mb-2"></i>
+        <h2 class="text-2xl md:text-4xl font-extrabold text-teal-300 glow-cyan">체세포 분열 & 개체 성장 챌린지</h2>
+        <p class="text-slate-300 text-xs md:text-sm leading-relaxed">
+          세포가 자라나면 <span class="text-teal-300 font-bold">검지로 슬라이스</span>하여 세포 수를 늘리세요!<br>
+          세포 분열이 진행될수록 <span class="text-yellow-300 font-bold">[수정란 → 배아 → 태아 → 어린이 → 성인]</span>으로 개체가 커지며 공간이 넓어집니다.<br>
+          세포 사이 틈새에 모세혈관을 집어넣어 최대 ATP를 생산하세요!
+        </p>
+      </div>
+      <button id="btnCenterStart" class="px-8 py-3.5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-black text-lg md:text-xl shadow-lg shadow-teal-500/40 active:scale-95 transition-all">
+        🚀 게임 시작하기 (S / Touch / Click)
+      </button>
+    </div>
+
+    <!-- 결과 모달 -->
+    <div id="resultModal" class="hidden absolute inset-0 bg-black/90 flex flex-col items-center justify-center gap-4 z-30 font-sans-kr">
+      <div class="p-6 rounded-2xl border-2 border-amber-400 bg-slate-950 max-w-md w-full text-center space-y-4 shadow-2xl">
+        <h3 class="font-pixel text-2xl md:text-3xl text-rose-500 glow-red">TIME OVER</h3>
+        <div class="py-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2">
+          <div class="text-xs text-amber-300/80 font-bold"><i class="fa-solid fa-bolt mr-1"></i>최종 생성 에너지</div>
+          <div id="finalScore" class="font-pixel text-3xl md:text-4xl text-amber-400 glow-yellow">0000 ATP</div>
+          <div id="atpRank" class="text-xs font-bold text-teal-300">수송 효율: <span class="text-yellow-300">S등급</span></div>
+          <div id="finalStage" class="text-xs text-teal-400 font-bold">최종 성체 도달: <span class="text-amber-300">성인 단계</span></div>
+          <div class="text-xs text-slate-400 pt-1 border-t border-slate-800">
+            최종 세포 수: <span id="finalCells" class="text-white font-bold">1</span>개 |
+            배치 혈관 수: <span id="finalVessels" class="text-white font-bold">0</span>개
+          </div>
+        </div>
+        <button id="btnRestart" class="w-full py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-base active:scale-95 transition-all">
+          다시 도전하기 (R)
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="w-full py-1.5 px-3 bg-slate-950 border-t-2 border-slate-800 flex items-center justify-between text-sm md:text-base text-slate-400 font-mono z-10">
+    <div class="flex items-center gap-3">
+      <button id="btnFooterStart" class="px-3 py-1 rounded bg-teal-600 hover:bg-teal-500 text-white font-bold font-sans-kr text-xs">시작 (S)</button>
+      <button id="btnFooterReset" class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-white font-bold font-sans-kr text-xs">리셋 (R)</button>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="camStatus" class="text-xs px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-700 font-sans-kr">웹캠: 권한 요청 중...</span>
+      <button id="btnToggleCam" class="text-xs px-2 py-1 bg-teal-500/20 hover:bg-teal-500/40 text-teal-300 border border-teal-500/40 rounded font-sans-kr">
+        웹캠 재연결
+      </button>
+    </div>
+  </footer>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('webcam');
+
+    // 개체 성장 단계 정의
+    const GROWTH_STAGES = [
+      { name: "1단계 (수정란)", minCells: 1,  radius: 140, icon: "🥚" },
+      { name: "2단계 (배아)",   minCells: 3,  radius: 200, icon: "🧫" },
+      { name: "3단계 (태아)",   minCells: 7,  radius: 260, icon: "👶" },
+      { name: "4단계 (어린이)", minCells: 13, radius: 310, icon: "🧒" },
+      { name: "5단계 (성인)",   minCells: 20, radius: 350, icon: "🧍" }
+    ];
+
+    const CONFIG = {
+      DISH_CX: 500,
+      DISH_CY: 360,
+      POOL_X: 1120,
+      POOL_SLOTS_Y: [160, 320, 480, 640],
+      INITIAL_CELL_RADIUS: 85,
+      MAX_CELL_RADIUS: 170,
+      MIN_CELL_RADIUS: 24,
+      GROWTH_SPEED: 2.2,
+      DIFFUSION_LIMIT: 110,
+      GAME_DURATION: 30.0
+    };
+
+    const dist = (x1, y1, x2, y2) => Math.hypot(x2 - x1, y2 - y1);
+
+    const HAND_CONNECTIONS = [
+      [0,1],[1,2],[2,3],[3,4],
+      [0,5],[5,6],[6,7],[7,8],
+      [5,9],[9,10],[10,11],[11,12],
+      [9,13],[13,14],[14,15],[15,16],
+      [13,17],[17,18],[18,19],[19,20],[0,17]
+    ];
+
+    class Cell {
+      constructor(x, y, radius) {
+        this.x = x; this.y = y;
+        this.radius = radius;
+        this.nutrition = 1.0;
+        this.wobble = Math.random() * Math.PI * 2;
+      }
+      update(dt) {
+        this.wobble += dt * 2.0;
+        if (this.radius < CONFIG.MAX_CELL_RADIUS) {
+          this.radius += CONFIG.GROWTH_SPEED * dt;
+        }
+      }
+      split(angle) {
+        const newR = Math.max(CONFIG.MIN_CELL_RADIUS, this.radius * 0.707);
+        const normal = angle + Math.PI / 2;
+        const shift = newR * 1.3;
+        const nx = Math.cos(normal) * shift;
+        const ny = Math.sin(normal) * shift;
+        const c1 = new Cell(this.x + nx, this.y + ny, newR);
+        const c2 = new Cell(this.x - nx, this.y - ny, newR);
+        c1.nutrition = c2.nutrition = this.nutrition;
+        return [c1, c2];
+      }
+    }
+
+    class Vessel {
+      constructor(x, y) {
+        this.x = x; this.y = y;
+        this.radius = 16;
+        this.particles = Array.from({ length: 8 }, () => ({
+          r: Math.random() * 10,
+          angle: Math.random() * Math.PI * 2,
+          speed: 25 + Math.random() * 20
+        }));
+      }
+      update(dt) {
+        this.particles.forEach(p => {
+          p.r += p.speed * dt;
+          if (p.r > CONFIG.DIFFUSION_LIMIT) p.r = 0;
+        });
+      }
+    }
+
+    const state = {
+      isPlaying: false,
+      timeLeft: CONFIG.GAME_DURATION,
+      score: 0,
+      cells: [new Cell(CONFIG.DISH_CX, CONFIG.DISH_CY, CONFIG.INITIAL_CELL_RADIUS)],
+      vessels: [],
+      heldVessel: null,
+      cooldowns: [0, 0, 0, 0],
+      pointer: { x: CONFIG.DISH_CX, y: CONFIG.DISH_CY },
+      trail: [],
+      isPinching: false,
+      wasPinching: false,
+      landmarks: null,
+      stageIndex: 0,
+      currentDishR: GROWTH_STAGES[0].radius
+    };
+
+    function getCurrentStage() {
+      const count = state.cells.length;
+      let stage = 0;
+      for (let i = GROWTH_STAGES.length - 1; i >= 0; i--) {
+        if (count >= GROWTH_STAGES[i].minCells) {
+          stage = i;
+          break;
+        }
+      }
+      return stage;
+    }
+
+    function startGame() {
+      state.isPlaying = true;
+      document.getElementById('startOverlay').classList.add('hidden');
+      document.getElementById('resultModal').classList.add('hidden');
+    }
+
+    function resetGame() {
+      state.isPlaying = false;
+      state.timeLeft = CONFIG.GAME_DURATION;
+      state.score = 0;
+      state.cells = [new Cell(CONFIG.DISH_CX, CONFIG.DISH_CY, CONFIG.INITIAL_CELL_RADIUS)];
+      state.vessels = [];
+      state.heldVessel = null;
+      state.cooldowns = [0, 0, 0, 0];
+      state.stageIndex = 0;
+      state.currentDishR = GROWTH_STAGES[0].radius;
+      document.getElementById('resultModal').classList.add('hidden');
+      document.getElementById('startOverlay').classList.remove('hidden');
+    }
+
+    function updatePointer(x, y, isPinching) {
+      state.pointer = { x, y };
+      const t = performance.now();
+      state.trail.push({ x, y, t });
+      while (state.trail.length > 0 && t - state.trail[0].t > 150) {
+        state.trail.shift();
+      }
+
+      if (!state.isPlaying) {
+        state.wasPinching = isPinching;
+        return;
+      }
+
+      // 슬라이스 (손가락 그어치기)
+      if (!isPinching && state.trail.length >= 2) {
+        const p1 = state.trail[state.trail.length - 1];
+        const p0 = state.trail[state.trail.length - 2];
+        const dt = p1.t - p0.t;
+        if (dt > 0 && (dist(p0.x, p0.y, p1.x, p1.y) / dt) > 0.4) {
+          for (let i = 0; i < state.cells.length; i++) {
+            const cell = state.cells[i];
+            if (cell.radius * 0.707 < CONFIG.MIN_CELL_RADIUS) continue;
+            if (dist(x, y, cell.x, cell.y) <= cell.radius) {
+              const angle = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+              state.cells.splice(i, 1, ...cell.split(angle));
+              break;
+            }
+          }
+        }
+      }
+
+      // 핀치 (혈관 집기)
+      if (isPinching && !state.wasPinching) {
+        for (let i = 0; i < state.vessels.length; i++) {
+          const v = state.vessels[i];
+          if (dist(x, y, v.x, v.y) <= v.radius + 60) {
+            state.heldVessel = v;
+            state.vessels.splice(i, 1);
+            break;
+          }
+        }
+        if (!state.heldVessel) {
+          for (let i = 0; i < CONFIG.POOL_SLOTS_Y.length; i++) {
+            const sy = CONFIG.POOL_SLOTS_Y[i];
+            if (state.cooldowns[i] <= 0 && dist(x, y, CONFIG.POOL_X, sy) <= 75) {
+              state.heldVessel = new Vessel(x, y);
+              state.cooldowns[i] = 1.2;
+              break;
+            }
+          }
+        }
+      } else if (isPinching && state.wasPinching && state.heldVessel) {
+        state.heldVessel.x = x;
+        state.heldVessel.y = y;
+      } else if (!isPinching && state.wasPinching && state.heldVessel) {
+        if (dist(x, y, CONFIG.DISH_CX, CONFIG.DISH_CY) <= state.currentDishR - 10) {
+          state.vessels.push(state.heldVessel);
+        }
+        state.heldVessel = null;
+      }
+
+      state.isPinching = isPinching;
+      state.wasPinching = isPinching;
+    }
+
+    document.getElementById('btnCenterStart').addEventListener('click', startGame);
+    document.getElementById('btnFooterStart').addEventListener('click', startGame);
+    document.getElementById('btnFooterReset').addEventListener('click', resetGame);
+    document.getElementById('btnRestart').addEventListener('click', () => { resetGame(); startGame(); });
+
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 's' || k === ' ') startGame();
+      else if (k === 'r') resetGame();
+    });
+
+    let hands = null;
+    let camera = null;
+    let isProcessingFrame = false; // 태블릿 끊김 방지용 프레임 락(Lock)
+
+    function initCamera() {
+      if (camera) return;
+
+      const statusEl = document.getElementById('camStatus');
+      statusEl.textContent = "웹캠: 권한 요청 중...";
+      statusEl.className = "text-xs px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500 font-sans-kr font-bold";
+
+      // 모바일 최적화를 위해 modelComplexity: 0 (Lite) 사용
+      hands = new Hands({ 
+        locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` 
+      });
+      
+      hands.setOptions({ 
+        maxNumHands: 1, 
+        modelComplexity: 0, // 0 = 모바일/태블릿 최적화 경량 모델
+        minDetectionConfidence: 0.5, 
+        minTrackingConfidence: 0.5 
+      });
+
+      hands.onResults((res) => {
+        isProcessingFrame = false; // 분석 완료 -> 다음 프레임 전송 가능하도록 잠금 해제
+
+        if (res.multiHandLandmarks && res.multiHandLandmarks.length > 0) {
+          state.landmarks = res.multiHandLandmarks[0];
+          const p8 = state.landmarks[8], p4 = state.landmarks[4];
+          
+          const aspect = (video.videoWidth && video.videoHeight) ? (video.videoWidth / video.videoHeight) : (16 / 9);
+          const dx = (p8.x - p4.x) * aspect;
+          const dy = (p8.y - p4.y);
+          const pinchDist = Math.hypot(dx, dy);
+
+          let isPinching = state.isPinching;
+          if (isPinching) { 
+            if (pinchDist > 0.12) isPinching = false; 
+          } else { 
+            if (pinchDist < 0.08) isPinching = true; 
+          }
+
+          const midX = (p8.x + p4.x) / 2;
+          const midY = (p8.y + p4.y) / 2;
+          const px = (1 - (isPinching ? midX : p8.x)) * canvas.width;
+          const py = (isPinching ? midY : p8.y) * canvas.height;
+
+          updatePointer(px, py, isPinching);
+        } else {
+          state.landmarks = null;
+        }
+      });
+
+      // 태블릿 프레임 밀림 방지를 위한 전송 루프
+      camera = new Camera(video, {
+        onFrame: async () => {
+          if (!isProcessingFrame && hands) {
+            isProcessingFrame = true;
+            try {
+              await hands.send({ image: video });
+            } catch (err) {
+              isProcessingFrame = false;
+            }
+          }
+        },
+        width: 480, height: 270, facingMode: 'user'
+      });
+
+      camera.start().then(() => {
+        statusEl.textContent = "웹캠: 켜짐 (인식 중)";
+        statusEl.className = "text-xs px-2 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-500 font-sans-kr font-bold";
+      }).catch((err) => {
+        console.error("카메라 권한 오류:", err);
+        statusEl.textContent = "웹캠: 권한 거부됨 / 오류";
+        statusEl.className = "text-xs px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-500 font-sans-kr font-bold";
+      });
+    }
+
+    document.getElementById('btnToggleCam').addEventListener('click', initCamera);
+    window.addEventListener('load', initCamera);
+
+    function drawOrganismBoundary(stageIndex, radius) {
+      const cx = CONFIG.DISH_CX;
+      const cy = CONFIG.DISH_CY;
+      
+      ctx.save();
+      ctx.beginPath();
+
+      if (stageIndex === 0) {
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      } else if (stageIndex === 1) {
+        ctx.ellipse(cx, cy, radius * 1.1, radius * 0.85, 0.2, 0, Math.PI * 2);
+      } else if (stageIndex === 2) {
+        ctx.ellipse(cx, cy, radius * 1.15, radius * 0.9, -0.15, 0, Math.PI * 2);
+      } else if (stageIndex === 3) {
+        ctx.ellipse(cx, cy, radius * 1.05, radius * 0.95, 0, 0, Math.PI * 2);
+      } else {
+        ctx.ellipse(cx, cy, radius * 1.08, radius * 0.98, 0, 0, Math.PI * 2);
+      }
+
+      ctx.fillStyle = 'rgba(8, 16, 28, 0.88)';
+      ctx.fill();
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 4;
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 15;
+      ctx.stroke();
+
+      const st = GROWTH_STAGES[stageIndex];
+      ctx.font = 'bold 24px "Noto Sans KR", sans-serif';
+      ctx.fillStyle = 'rgba(0, 240, 255, 0.25)';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${st.icon} ${st.name}`, cx, cy - radius + 35);
+
+      ctx.restore();
+    }
+
+    let lastT = performance.now();
+    function loop(nowT) {
+      const dt = Math.min((nowT - lastT) / 1000, 0.1);
+      lastT = nowT;
+
+      if (state.isPlaying) {
+        state.timeLeft -= dt;
+        if (state.timeLeft <= 0) {
+          state.timeLeft = 0;
+          state.isPlaying = false;
+
+          const finalAtp = Math.floor(state.score);
+          document.getElementById('finalScore').textContent = `${finalAtp.toLocaleString()} ATP`;
+          document.getElementById('finalCells').textContent = state.cells.length;
+          document.getElementById('finalVessels').textContent = state.vessels.length;
+          document.getElementById('finalStage').innerHTML = `최종 도달 개체: <span class="text-amber-300 font-bold">${GROWTH_STAGES[state.stageIndex].name}</span>`;
+
+          let rankText = 'C (수송 부족)';
+          if (finalAtp >= 3500) rankText = 'S+ (최고 효율 세포망)';
+          else if (finalAtp >= 2200) rankText = 'A (우수 수송)';
+          else if (finalAtp >= 1200) rankText = 'B (보통 수송)';
+          document.getElementById('atpRank').innerHTML = `수송 효율: <span class="text-yellow-300 font-bold">${rankText}</span>`;
+
+          document.getElementById('resultModal').classList.remove('hidden');
+        }
+
+        state.stageIndex = getCurrentStage();
+        const targetR = GROWTH_STAGES[state.stageIndex].radius;
+        state.currentDishR += (targetR - state.currentDishR) * 0.05;
+
+        document.getElementById('stageBadge').textContent = GROWTH_STAGES[state.stageIndex].name;
+
+        for (let i = 0; i < state.cooldowns.length; i++) {
+          if (state.cooldowns[i] > 0) state.cooldowns[i] -= dt;
+        }
+
+        state.cells.forEach(c => c.update(dt));
+
+        // 세포 간 완충 물리 적용
+        for (let iter = 0; iter < 2; iter++) {
+          for (let i = 0; i < state.cells.length; i++) {
+            for (let j = i + 1; j < state.cells.length; j++) {
+              const c1 = state.cells[i], c2 = state.cells[j];
+              const d = dist(c1.x, c1.y, c2.x, c2.y);
+              const minD = c1.radius + c2.radius + 4;
+              if (d < minD && d > 0) {
+                const overlap = minD - d;
+                const nx = (c2.x - c1.x) / d;
+                const ny = (c2.y - c1.y) / d;
+                const push = overlap * 0.15;
+                c1.x -= nx * push; c1.y -= ny * push;
+                c2.x += nx * push; c2.y += ny * push;
+              }
+            }
+          }
+          state.cells.forEach(c => {
+            const d = dist(c.x, c.y, CONFIG.DISH_CX, CONFIG.DISH_CY);
+            const maxDist = state.currentDishR - c.radius - 10;
+            if (d > maxDist && d > 0) {
+              const nx = (c.x - CONFIG.DISH_CX) / d;
+              const ny = (c.y - CONFIG.DISH_CY) / d;
+              c.x = CONFIG.DISH_CX + nx * maxDist;
+              c.y = CONFIG.DISH_CY + ny * maxDist;
+            }
+          });
+        }
+
+        state.vessels.forEach(v => v.update(dt));
+
+        // ATP 연산
+        state.cells.forEach(c => {
+          let total = 0, sup = 0;
+          [0, 0.5, 0.85].forEach(rf => {
+            const rr = c.radius * rf;
+            for (let a = 0; a < 8; a++) {
+              total++;
+              const px = c.x + Math.cos(a * Math.PI / 4) * rr;
+              const py = c.y + Math.sin(a * Math.PI / 4) * rr;
+              if (state.vessels.some(v => dist(px, py, v.x, v.y) <= CONFIG.DIFFUSION_LIMIT)) sup++;
+            }
+          });
+          c.nutrition += ((sup / total) - c.nutrition) * 0.1;
+          state.score += Math.PI * c.radius * c.radius * c.nutrition * 0.00015;
+        });
+      }
+
+      // HUD
+      document.getElementById('scoreDisplay').textContent = String(Math.floor(state.score)).padStart(4, '0');
+      document.getElementById('cellCountDisplay').textContent = state.cells.length;
+      document.getElementById('timerDisplay').textContent = state.timeLeft.toFixed(1);
+
+      // 렌더링
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (video.readyState >= 2) {
+        ctx.save(); ctx.globalAlpha = 0.25; ctx.scale(-1, 1);
+        ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }
+
+      drawOrganismBoundary(state.stageIndex, state.currentDishR);
+
+      // 혈관
+      state.vessels.forEach(v => {
+        ctx.beginPath();
+        ctx.arc(v.x, v.y, CONFIG.DIFFUSION_LIMIT, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(232, 84, 107, 0.18)';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(v.x, v.y, v.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff3366';
+        ctx.fill();
+
+        v.particles.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(v.x + Math.cos(p.angle) * p.r, v.y + Math.sin(p.angle) * p.r, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffeb3b';
+          ctx.fill();
+        });
+      });
+
+      // 세포
+      state.cells.forEach(c => {
+        const r = c.radius * (1 + Math.sin(c.wobble) * 0.02);
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(12, 22, 38, 0.85)';
+        ctx.fill();
+        ctx.strokeStyle = c.nutrition > 0.5 ? '#00ffcc' : (c.nutrition > 0.3 ? '#ffeb3b' : '#ff3366');
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, r * 0.35, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(20, 35, 55, 0.8)';
+        ctx.fill();
+
+        if (c.nutrition < 0.5) {
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, r * (1 - c.nutrition) * 0.7, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0,0,0,0.75)';
+          ctx.fill();
+        }
+      });
+
+      // 우측 공급소
+      ctx.fillStyle = 'rgba(10, 18, 30, 0.85)';
+      ctx.fillRect(CONFIG.POOL_X - 55, 40, 110, 640);
+      ctx.strokeStyle = '#00f0ff';
+      ctx.strokeRect(CONFIG.POOL_X - 55, 40, 110, 640);
+
+      CONFIG.POOL_SLOTS_Y.forEach((sy, i) => {
+        ctx.beginPath();
+        ctx.arc(CONFIG.POOL_X, sy, 30, 0, Math.PI * 2);
+        ctx.fillStyle = state.cooldowns[i] > 0 ? '#1e293b' : 'rgba(255, 51, 102, 0.25)';
+        ctx.fill();
+        ctx.strokeStyle = state.cooldowns[i] > 0 ? '#334155' : '#ff3366';
+        ctx.stroke();
+
+        if (state.cooldowns[i] <= 0) {
+          ctx.beginPath();
+          ctx.arc(CONFIG.POOL_X, sy, 16, 0, Math.PI * 2);
+          ctx.fillStyle = '#ff3366';
+          ctx.fill();
+        }
+      });
+
+      if (state.heldVessel) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(state.heldVessel.x, state.heldVessel.y, CONFIG.DIFFUSION_LIMIT, 0, Math.PI * 2);
+        ctx.strokeStyle = '#ffeb3b';
+        ctx.setLineDash([6, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.beginPath();
+        ctx.arc(state.heldVessel.x, state.heldVessel.y, 20, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff3366';
+        ctx.shadowColor = '#ffeb3b';
+        ctx.shadowBlur = 20;
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if (state.trail.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(state.trail[0].x, state.trail[0].y);
+        for (let i = 1; i < state.trail.length; i++) ctx.lineTo(state.trail[i].x, state.trail[i].y);
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      }
+
+      // 손 스켈레톤
+      if (state.landmarks) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 2;
+        HAND_CONNECTIONS.forEach(([i, j]) => {
+          const p1 = state.landmarks[i], p2 = state.landmarks[j];
+          ctx.beginPath();
+          ctx.moveTo((1 - p1.x) * canvas.width, p1.y * canvas.height);
+          ctx.lineTo((1 - p2.x) * canvas.width, p2.y * canvas.height);
+          ctx.stroke();
+        });
+
+        state.landmarks.forEach(lm => {
+          ctx.beginPath();
+          ctx.arc((1 - lm.x) * canvas.width, lm.y * canvas.height, 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#00f0ff';
+          ctx.fill();
+        });
+
+        const p8 = state.landmarks[8], p4 = state.landmarks[4];
+        const x8 = (1 - p8.x) * canvas.width, y8 = p8.y * canvas.height;
+        const x4 = (1 - p4.x) * canvas.width, y4 = p4.y * canvas.height;
+
+        ctx.beginPath();
+        ctx.moveTo(x8, y8); ctx.lineTo(x4, y4);
+        ctx.strokeStyle = state.isPinching ? '#ffeb3b' : 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = state.isPinching ? 4 : 1.5;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 포인터 커서
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(state.pointer.x, state.pointer.y, state.isPinching ? 10 : 14, 0, Math.PI * 2);
+      ctx.fillStyle = state.isPinching ? '#ffeb3b' : 'rgba(0, 240, 255, 0.4)';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.fill();
+      ctx.stroke();
+
+      if (state.isPinching) {
+        ctx.font = 'bold 12px "VT323", monospace';
+        ctx.fillStyle = '#ffeb3b';
+        ctx.textAlign = 'center';
+        ctx.fillText("PINCH ON", state.pointer.x, state.pointer.y + 24);
+      }
+      ctx.restore();
+
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

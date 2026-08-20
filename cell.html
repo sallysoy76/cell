@@ -2,245 +2,159 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE: SCIENCE LAB - 세포 분열과 물질 수송</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>RE: SCIENCE LAB - 세포 분열 시뮬레이션</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- MediaPipe Hands -->
+    <!-- MediaPipe Hands & Camera Utils -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: #05050a; color: #f8fafc; overflow: hidden; margin: 0; padding: 0; }
-        .glass { background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        /* 비디오 배경 설정 */
-        #webcam {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* 화면에 꽉 차게 */
-            z-index: 0; /* 가장 아래 레이어 */
-        }
-        /* 캔버스를 비디오 위에 배치 */
-        #simCanvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1; /* 비디오 바로 위 레이어 */
-        }
-        /* UI 요소들이 비디오/캔버스 위에 오도록 z-index 설정 */
-        header, main > div, footer { z-index: 10; position: relative; }
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
+        * { box-sizing: border-box; touch-action: none; }
+        body { font-family: 'Pretendard', sans-serif; background-color: #030712; color: #f8fafc; overflow: hidden; margin: 0; padding: 0; }
+        .glass-panel { background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, 0.12); }
+        .hud-chip { background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); }
     </style>
 </head>
-<body class="w-screen h-screen flex flex-col justify-between p-0">
+<body class="w-screen h-screen flex flex-col justify-between p-3 select-none">
 
-    <!-- 상단 대시보드 (HUD) - p-4에서 p-0으로 margin 제거 -->
-    <header class="w-full glass p-4 flex justify-between items-center z-10 shadow-lg mt-4 mx-4 rounded-2xl">
-        <div class="flex items-center space-x-4">
-            <h1 class="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400">RE: SCIENCE LAB</h1>
-            <div id="mode-badge" class="px-3 py-1 bg-cyan-500/20 border border-cyan-500/50 rounded-full text-cyan-300 text-xs font-bold">
-                모드: 연습 모드 (자유 조작)
-            </div>
-            <div id="growth-badge" class="px-3 py-1 bg-purple-500/20 border border-purple-500/50 rounded-full text-purple-300 text-xs font-bold">
-                단계: 1단계 (수정란)
-            </div>
+    <!-- 상단 네온 대시보드 (HUD) -->
+    <header class="w-full glass-panel rounded-2xl p-3 flex justify-between items-center z-20 shadow-2xl">
+        <div class="flex items-center space-x-3">
+            <span class="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 tracking-wider">
+                RE: SCIENCE LAB
+            </span>
+            <span id="stage-badge" class="px-3 py-1 bg-cyan-500/20 border border-cyan-400/40 rounded-full text-cyan-300 text-xs font-extrabold tracking-wide">
+                1단계 (수정란)
+            </span>
         </div>
-        
-        <div class="flex items-center space-x-6 text-sm">
-            <div>세포 수: <span id="cell-count" class="font-bold text-cyan-400">1</span>개</div>
-            <div>혈관 수: <span id="vessel-count" class="font-bold text-emerald-400">1</span>개</div> <!-- 초기값 1로 변경 -->
-            <div id="timer-box" class="hidden">남은 시간: <span id="timer" class="font-bold text-amber-400 text-lg">30</span>초</div>
-            <div class="bg-slate-800 px-4 py-1.5 rounded-xl border border-slate-700">
-                ATP 점수: <span id="score" class="font-black text-emerald-400 text-lg">0</span>
+
+        <div class="flex items-center space-x-3 text-xs md:text-sm">
+            <div class="hud-chip px-3 py-1.5 rounded-xl text-slate-300">
+                세포: <span id="cell-count" class="font-extrabold text-cyan-400 text-base">1</span>개
+            </div>
+            <div class="hud-chip px-3 py-1.5 rounded-xl text-slate-300">
+                혈관: <span id="vessel-count" class="font-extrabold text-emerald-400 text-base">0</span>개
+            </div>
+            <div class="hud-chip px-3 py-1.5 rounded-xl text-slate-300">
+                시간: <span id="timer" class="font-extrabold text-amber-400 text-base">30</span>초
+            </div>
+            <div class="bg-gradient-to-r from-emerald-950 to-slate-900 border border-emerald-500/40 px-4 py-1.5 rounded-xl">
+                ATP: <span id="score" class="font-black text-emerald-300 text-lg">0</span>
             </div>
         </div>
     </header>
 
-    <!-- 메인 시뮬레이션 영역 (비디오와 캔버스를 포함) -->
-    <main class="relative flex-1 my-3 flex items-center justify-center overflow-hidden rounded-3xl glass border border-slate-800 mx-4">
-        <!-- 웹캠 비디오 (배경으로 설정) - class="hidden" 제거 -->
-        <video id="webcam" playsinline></video>
-        
-        <!-- 캔버스 (비디오 위에 세포 그리기) -->
-        <canvas id="simCanvas"></canvas>
+    <!-- 메인 시뮬레이션 영역 -->
+    <main class="relative flex-1 my-2 rounded-3xl overflow-hidden glass-panel border border-slate-800 flex items-center justify-center">
+        <!-- 캔버스 (전체 렌더링) -->
+        <canvas id="simCanvas" class="w-full h-full block"></canvas>
 
-        <!-- 안내 오버레이 -->
-        <div id="overlay-msg" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 glass px-6 py-2.5 rounded-full text-sm font-medium text-slate-300 shadow-xl border border-white/10 pointer-events-none z-20">
-            웹캠 연결 대기 중... 손을 화면에 보여주세요!
-        </div>
+        <!-- 비디오 요소 (MediaPipe 소스) -->
+        <video id="webcam" class="hidden" playsinline autoplay muted></video>
 
-        <!-- 결과 비교 팝업 모달 -->
-        <div id="result-modal" class="absolute inset-0 bg-black/80 backdrop-blur-md hidden flex items-center justify-center z-50">
-            <div class="glass p-8 rounded-3xl max-w-lg w-full text-center border border-cyan-500/30 shadow-2xl">
-                <h2 class="text-2xl font-black text-cyan-400 mb-2">📊 탐구 결과 비교</h2>
-                <p class="text-sm text-slate-300 mb-6">미션 B(분열 없음)와 미션 C(분열 포함)의 ATP 생산량을 비교해보세요!</p>
-                
-                <div class="grid grid-cols-2 gap-4 mb-6">
-                    <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-700">
-                        <div class="text-xs text-slate-400 mb-1">미션 B (분열 ❌)</div>
-                        <div id="result-score-b" class="text-2xl font-black text-amber-400">0점</div>
-                    </div>
-                    <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-700">
-                        <div class="text-xs text-slate-400 mb-1">미션 C (분열 ⭕)</div>
-                        <div id="result-score-c" class="text-2xl font-black text-emerald-400">0점</div>
-                    </div>
-                </div>
-
-                <div id="result-analysis" class="text-xs text-cyan-200 bg-cyan-950/40 p-3 rounded-xl border border-cyan-800/50 mb-6 leading-relaxed">
-                    분석 중...
-                </div>
-
-                <button onclick="resetToPractice()" class="w-full py-3 bg-gradient-to-r from-cyan-500 to-emerald-500 rounded-xl font-bold text-slate-950 hover:opacity-95 transition">
-                    연습 모드로 돌아가기
-                </button>
-            </div>
+        <!-- 웹캠 상태 및 제스처 안내 오버레이 -->
+        <div id="status-overlay" class="absolute bottom-4 left-1/2 -translate-x-1/2 glass-panel px-5 py-2 rounded-full text-xs font-semibold text-slate-300 pointer-events-none shadow-xl border border-white/10 z-20">
+            카메라 연결 중... 잠시만 기다려주세요.
         </div>
     </main>
 
-    <!-- 하단 조작 컨트롤 패널 -->
-    <footer class="w-full glass rounded-2xl p-3 flex justify-center items-center space-x-4 z-10 mb-4 mx-4">
-        <button onclick="setMode('practice')" id="btn-practice" class="px-5 py-2.5 rounded-xl font-bold text-sm bg-cyan-500 text-slate-950 shadow-lg transition">
-            1. 연습 모드 (자유)
+    <!-- 하단 조작 바 -->
+    <footer class="w-full glass-panel rounded-2xl p-2.5 flex justify-center items-center space-x-4 z-20">
+        <button id="btn-start" onclick="startGame()" class="px-6 py-2 rounded-xl font-extrabold text-sm bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 shadow-lg active:scale-95 transition">
+            탐구 시작 (30초)
         </button>
-        <button onclick="setMode('modeB')" id="btn-modeB" class="px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
-            2. 미션 B (분열 ❌ / 30초)
-        </button>
-        <button onclick="setMode('modeC')" id="btn-modeC" class="px-5 py-2.5 rounded-xl font-bold text-sm bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
-            3. 미션 C (분열 ⭕ / 30초)
-        </button>
-        <button onclick="showComparison()" id="btn-compare" class="px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 text-white shadow-lg hover:bg-purple-500 transition hidden">
-            📊 결과 비교 보기
+        <button onclick="resetGame()" class="px-5 py-2 rounded-xl font-bold text-sm bg-slate-800 text-slate-300 hover:bg-slate-700 active:scale-95 transition">
+            다시 세팅
         </button>
     </footer>
 
-    <!-- 시뮬레이션 및 미션 로직 스크립트 -->
     <script>
         const canvas = document.getElementById('simCanvas');
         const ctx = canvas.getContext('2d');
-        const videoElement = document.getElementById('webcam');
-        const overlayMsg = document.getElementById('overlay-msg');
+        const video = document.getElementById('webcam');
+        const statusOverlay = document.getElementById('status-overlay');
 
-        let currentMode = 'practice'; // 'practice', 'modeB', 'modeC'
-        let timer = 30;
+        let isRunning = false;
+        let timeLeft = 30;
         let timerInterval = null;
-        let scoreB = null;
-        let scoreC = null;
+        let score = 0;
+        let stage = 1;
 
         let cells = [];
         let vessels = [];
-        let organismStage = 1; // 1: 수정란, 2: 배아, 3: 태아, 4: 어린이, 5: 성인
-        let score = 0;
-
-        let isProcessing = false;
         let handLandmarks = null;
+        let isProcessing = false;
         let lastSliceTime = 0;
-        let lastPinchState = false;
+        let wasPinching = false;
 
-        function resizeCanvas() {
+        function resize() {
             canvas.width = canvas.parentElement.clientWidth;
             canvas.height = canvas.parentElement.clientHeight;
         }
-        window.addEventListener('resize', resizeCanvas);
-        // 초기화 시 resizeCanvas() 호출은 나중에 비디오가 로드될 때로 미룸
+        window.addEventListener('resize', resize);
+        resize();
 
-        function initGame() {
+        function resetGame() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            timeLeft = 30;
+            score = 0;
+            stage = 1;
+            document.getElementById('timer').innerText = timeLeft;
+            document.getElementById('score').innerText = score;
+            document.getElementById('btn-start').innerText = "탐구 시작 (30초)";
+            
             cells = [{
                 x: canvas.width / 2,
                 y: canvas.height / 2,
-                radius: 45,
-                vx: (Math.random() - 0.5) * 0.8,
-                vy: (Math.random() - 0.5) * 0.8
+                radius: 46,
+                vx: 0,
+                vy: 0
             }];
-            vessels = [{ x: canvas.width / 2 + 100, y: canvas.height / 2 + 50, radius: 14 }]; // 초기 혈관 1개 추가
-            score = 0;
-            organismStage = 1;
+            vessels = [];
+            updateHUD();
         }
 
-        function setMode(mode) {
-            currentMode = mode;
-            clearInterval(timerInterval);
+        function startGame() {
+            if (isRunning) return;
+            resetGame();
+            isRunning = true;
+            document.getElementById('btn-start').innerText = "탐구 진행 중...";
             
-            // 버튼 스타일 업데이트
-            document.getElementById('btn-practice').className = `px-5 py-2.5 rounded-xl font-bold text-sm transition ${mode === 'practice' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300'}`;
-            document.getElementById('btn-modeB').className = `px-5 py-2.5 rounded-xl font-bold text-sm transition ${mode === 'modeB' ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'}`;
-            document.getElementById('btn-modeC').className = `px-5 py-2.5 rounded-xl font-bold text-sm transition ${mode === 'modeC' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'}`;
-            
-            const badge = document.getElementById('mode-badge');
-            const timerBox = document.getElementById('timer-box');
-
-            initGame();
-
-            if (mode === 'practice') {
-                badge.className = "px-3 py-1 bg-cyan-500/20 border border-cyan-500/50 rounded-full text-cyan-300 text-xs font-bold";
-                badge.innerText = "모드: 연습 모드 (자유 조작)";
-                timerBox.classList.add('hidden');
-            } else if (mode === 'modeB') {
-                badge.className = "px-3 py-1 bg-amber-500/20 border border-amber-500/50 rounded-full text-amber-300 text-xs font-bold";
-                badge.innerText = "모드: 미션 B (분열 ❌ - 혈관 배치만)";
-                timerBox.classList.remove('hidden');
-                startTimer(() => {
-                    scoreB = score;
-                    alert("미션 B 종료! 점수가 기록되었습니다. 이제 미션 C를 진행해 보세요.");
-                    setMode('modeC');
-                });
-            } else if (mode === 'modeC') {
-                badge.className = "px-3 py-1 bg-emerald-500/20 border border-emerald-500/50 rounded-full text-emerald-300 text-xs font-bold";
-                badge.innerText = "모드: 미션 C (분열 ⭕ - 전체 조작)";
-                timerBox.classList.remove('hidden');
-                startTimer(() => {
-                    scoreC = score;
-                    if (scoreB !== null) {
-                        document.getElementById('btn-compare').classList.remove('hidden');
-                    }
-                    showComparisonModal();
-                });
-            }
-        }
-
-        function startTimer(callback) {
-            timer = 30;
-            document.getElementById('timer').innerText = timer;
             timerInterval = setInterval(() => {
-                timer--;
-                document.getElementById('timer').innerText = timer;
-                if (timer <= 0) {
+                timeLeft--;
+                document.getElementById('timer').innerText = timeLeft;
+                if (timeLeft <= 0) {
                     clearInterval(timerInterval);
-                    callback();
+                    isRunning = false;
+                    document.getElementById('btn-start').innerText = "다시 시작";
+                    alert(`⏰ 탐구 종료!\n최종 세포 수: ${cells.length}개\n배치된 혈관: ${vessels.length}개\n총 생성 ATP: ${score}`);
                 }
             }, 1000);
         }
 
-        function showComparisonModal() {
-            document.getElementById('result-score-b').innerText = (scoreB !== null ? scoreB : 0) + '점';
-            document.getElementById('result-score-c',).innerText = (scoreC !== null ? scoreC : 0) + '점';
-            
-            let analysisText = "";
-            if (scoreB !== null && scoreC !== null) {
-                if (scoreC > scoreB) {
-                    analysisText = `✨ 결과 해석: 미션 C(분열 포함, ${scoreC}점)가 미션 B(분열 없음, ${scoreB}점)보다 ATP 생산량이 훨씬 높습니다! 세포를 쪼개어 표면적을 넓히고 혈관을 배치해야만 물질 수송 효율이 극대화된다는 것을 증명합니다.`;
-                } else {
-                    analysisText = `결과: 미션 B와 C를 비교하여 세포 분열이 물질 수송에 미치는 영향을 확인해보세요.`;
-                }
-            } else {
-                analysisText = `미션 B와 미션 C를 모두 완료하면 상세 비교 분석이 제공됩니다.`;
-            }
-            document.getElementById('result-analysis').innerText = analysisText;
-            document.getElementById('result-modal').classList.remove('hidden');
+        function updateHUD() {
+            document.getElementById('cell-count').innerText = cells.length;
+            document.getElementById('vessel-count').innerText = vessels.length;
+            document.getElementById('score').innerText = score;
+
+            const stageNames = ["1단계 (수정란)", "2단계 (배아)", "3단계 (태아)", "4단계 (어린이)", "5단계 (성인)"];
+            if (cells.length >= 20) stage = 5;
+            else if (cells.length >= 13) stage = 4;
+            else if (cells.length >= 7) stage = 3;
+            else if (cells.length >= 3) stage = 2;
+            else stage = 1;
+
+            document.getElementById('stage-badge').innerText = stageNames[stage - 1];
         }
 
-        function resetToPractice() {
-            document.getElementById('result-modal').classList.add('hidden');
-            setMode('practice');
-        }
-
-        // MediaPipe 설정
+        // MediaPipe Hands 설정
         const hands = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
         });
+
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 0,
@@ -252,104 +166,89 @@
             isProcessing = false;
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 handLandmarks = results.multiHandLandmarks[0];
-                overlayMsg.innerText = "손 인식됨: 슬라이스(자르기) 및 핀치(혈관 배치) 가능";
+                statusOverlay.innerText = "손 인식 중: 검지로 세포 분열(Slice) | 엄지·검지 맞대기로 혈관 배치(Pinch)";
             } else {
                 handLandmarks = null;
-                overlayMsg.innerText = "손을 카메라 앞에 보여주세요 (검지: 자르기 / 엄지·검지: 혈관 배치)";
+                statusOverlay.innerText = "카메라 앞에 손을 보여주세요";
             }
         });
 
-        // 비디오 데이터 로드 완료 후 시뮬레이션 시작
-        videoElement.addEventListener('loadedmetadata', () => {
-            resizeCanvas();
-            initGame();
-            const camera = new Camera(videoElement, {
-                onFrame: async () => {
-                    if (!isProcessing) {
-                        isProcessing = true;
-                        await hands.send({ image: videoElement });
-                    }
-                },
-                width: 480,
-                height: 270
-            });
-            camera.start().catch(() => {
-                overlayMsg.innerText = "웹캠 권한이 거부되었거나 카메라를 사용할 수 없습니다.";
-            });
-            loop(); // 메인 루프 시작
+        const camera = new Camera(video, {
+            onFrame: async () => {
+                if (!isProcessing) {
+                    isProcessing = true;
+                    await hands.send({ image: video });
+                }
+            },
+            width: 480,
+            height: 270
         });
 
-        // 물리 연산
-        function updatePhysics() {
-            let maxRadius = Math.min(canvas.width, canvas.height) * 0.42;
+        camera.start().then(() => {
+            statusOverlay.innerText = "카메라 준비 완료! 손을 올려보세요.";
+        }).catch(() => {
+            statusOverlay.innerText = "카메라 권한을 허용해 주세요.";
+        });
+
+        function update() {
             let cx = canvas.width / 2;
             let cy = canvas.height / 2;
+            let baseR = Math.min(canvas.width, canvas.height) * 0.38;
+            let currentBoundaryR = baseR * (0.65 + (stage - 1) * 0.08);
 
-            // 단계별 성장 처리
-            if (cells.length >= 20) organismStage = 5;
-            else if (cells.length >= 13) organismStage = 4;
-            else if (cells.length >= 7) organismStage = 3;
-            else if (cells.length >= 3) organismStage = 2;
-            else organismStage = 1;
-
-            const stageNames = ["1단계 (수정란)", "2단계 (배아)", "3단계 (태아)", "4단계 (어린이)", "5단계 (성인)"];
-            document.getElementById('growth-badge').innerText = `단계: ${stageNames[organismStage - 1]}`;
-
-            // 손 제스처 인터랙션 처리
+            // 제스처 입력 처리
             if (handLandmarks) {
                 let indexTip = handLandmarks[8];
                 let thumbTip = handLandmarks[4];
-                
-                let curX = (1 - indexTip.x) * canvas.width;
-                let curY = indexTip.y * canvas.height;
 
-                // 핀치(혈관 배치): 엄지와 검지 끝 거리 측정
-                let thumbX = (1 - thumbTip.x) * canvas.width;
-                let thumbY = thumbTip.y * canvas.height;
-                let pinchDist = Math.hypot(curX - thumbX, curY - thumbY);
-                let isPinching = pinchDist < 35;
+                let ix = (1 - indexTip.x) * canvas.width;
+                let iy = indexTip.y * canvas.height;
+                let tx = (1 - thumbTip.x) * canvas.width;
+                let ty = thumbTip.y * canvas.height;
 
-                if (isPinching && !lastPinchState) {
-                    // 혈관 추가 (제한 영역 내)
-                    if (Math.hypot(curX - cx, curY - cy) < maxRadius - 20) {
-                        vessels.push({ x: curX, y: curY, radius: 14 });
+                let pinchDist = Math.hypot(ix - tx, iy - ty);
+                let isPinching = pinchDist < 38;
+
+                // 핀치: 혈관 배치
+                if (isPinching && !wasPinching) {
+                    if (Math.hypot(ix - cx, iy - cy) < currentBoundaryR - 15) {
+                        vessels.push({ x: ix, y: iy, radius: 12 });
                     }
                 }
-                lastPinchState = isPinching;
+                wasPinching = isPinching;
 
-                // 슬라이스(세포 분열): 모드가 B가 아닐 때만 작동
-                if (currentMode !== 'modeB') {
-                    let now = Date.now();
-                    if (now - lastSliceTime > 600) {
-                        cells.forEach((cell, idx) => {
-                            let dist = Math.hypot(curX - cell.x, curY - cell.y);
-                            if (dist < cell.radius && cell.radius > 22 && cells.length < 35) {
-                                // 세포 분열 실행
-                                let newR = cell.radius * 0.78;
-                                cell.radius = newR;
-                                cells.push({
-                                    x: cell.x + (Math.random() - 0.5) * 30,
-                                    y: cell.y + (Math.random() - 0.5) * 30,
-                                    radius: newR,
-                                    vx: (Math.random() - 0.5) * 1.5,
-                                    vy: (Math.random() - 0.5) * 1.5
-                                });
-                                lastSliceTime = now;
-                            }
-                        });
+                // 슬라이스: 세포 분열
+                let now = Date.now();
+                if (now - lastSliceTime > 350) {
+                    for (let i = cells.length - 1; i >= 0; i--) {
+                        let cell = cells[i];
+                        let d = Math.hypot(ix - cell.x, iy - cell.y);
+                        if (d < cell.radius && cell.radius > 16 && cells.length < 32) {
+                            let newR = cell.radius * 0.82;
+                            cell.radius = newR;
+                            cells.push({
+                                x: cell.x + (Math.random() - 0.5) * 20,
+                                y: cell.y + (Math.random() - 0.5) * 20,
+                                radius: newR,
+                                vx: (Math.random() - 0.5) * 0.5,
+                                vy: (Math.random() - 0.5) * 0.5
+                            });
+                            lastSliceTime = now;
+                            break;
+                        }
                     }
                 }
             }
 
-            // 세포 간 반발 물리 연산
+            // 세포 간 반발 물리 (젤리처럼 부드러운 완충)
             for (let i = 0; i < cells.length; i++) {
                 for (let j = i + 1; j < cells.length; j++) {
                     let dx = cells[j].x - cells[i].x;
                     let dy = cells[j].y - cells[i].y;
                     let dist = Math.hypot(dx, dy);
-                    let minDist = cells[i].radius + cells[j].radius + 4;
+                    let minDist = cells[i].radius + cells[j].radius + 3;
                     if (dist < minDist && dist > 0) {
-                        let overlap = (minDist - dist) * 0.15;
+                        let overlap = (minDist - dist) * 0.1;
                         let nx = dx / dist;
                         let ny = dy / dist;
                         cells[i].x -= nx * overlap;
@@ -360,82 +259,112 @@
                 }
             }
 
-            // 세포 이동 및 경계 유지
+            // 세포 이동 감쇄 및 경계 처리
             cells.forEach(cell => {
+                cell.vx *= 0.92;
+                cell.vy *= 0.92;
                 cell.x += cell.vx;
                 cell.y += cell.vy;
-                let distFromCenter = Math.hypot(cell.x - cx, cell.y - cy);
-                let limitR = maxRadius - cell.radius;
-                if (distFromCenter > limitR) {
+
+                let d = Math.hypot(cell.x - cx, cell.y - cy);
+                let limit = currentBoundaryR - cell.radius;
+                if (d > limit) {
                     let angle = Math.atan2(cell.y - cy, cell.x - cx);
-                    cell.x = cx + Math.cos(angle) * limitR;
-                    cell.y = cy + Math.sin(angle) * limitR;
-                    cell.vx *= -1;
-                    cell.vy *= -1;
+                    cell.x = cx + Math.cos(angle) * limit;
+                    cell.y = cy + Math.sin(angle) * limit;
                 }
             });
 
-            // ATP 점수 계산 (세포 수와 혈관 접촉 효율 반영)
-            let activeVessels = vessels.length;
-            score = Math.floor(cells.length * 15 + activeVessels * 25);
+            // ATP 계산 (세포 수 + 혈관 공급 효율)
+            if (isRunning) {
+                let supplied = 0;
+                cells.forEach(c => {
+                    let hasVessel = vessels.some(v => Math.hypot(c.x - v.x, c.y - v.y) < 70);
+                    if (hasVessel) supplied++;
+                });
+                score += (cells.length * 2 + supplied * 8);
+            }
 
-            document.getElementById('cell-count').innerText = cells.length;
-            document.getElementById('vessel-count').innerText = activeVessels;
-            document.getElementById('score').innerText = score;
+            updateHUD();
         }
 
-        // 그리기 연산
-        function draw() {
+        function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             let cx = canvas.width / 2;
             let cy = canvas.height / 2;
-            let maxRadius = Math.min(canvas.width, canvas.height) * 0.42;
+            let baseR = Math.min(canvas.width, canvas.height) * 0.38;
+            let currentBoundaryR = baseR * (0.65 + (stage - 1) * 0.08);
 
-            // 외곽선 (개체 성장 단계별 윤곽) - z-index 최상위 유지를 위해 나중에 그림
-            
-            // 혈관 그리기
+            // 1. 개체 성장 경계선 (네온 원형)
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, currentBoundaryR, 0, Math.PI * 2);
+            ctx.strokeStyle = stage === 5 ? '#38bdf8' : (stage >= 3 ? '#a855f7' : '#34d399');
+            ctx.lineWidth = 3;
+            ctx.setLineDash([10, 6]);
+            ctx.stroke();
+            ctx.restore();
+
+            // 2. 혈관 렌더링
             vessels.forEach(v => {
+                // 확산 범위
+                ctx.beginPath();
+                ctx.arc(v.x, v.y, 65, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.08)';
+                ctx.fill();
+
+                // 혈관 코어
                 ctx.beginPath();
                 ctx.arc(v.x, v.y, v.radius, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(239, 68, 68, 0.85)'; // 빨간색 혈관
+                ctx.fillStyle = '#ef4444';
                 ctx.fill();
                 ctx.strokeStyle = '#fca5a5';
                 ctx.lineWidth = 2;
                 ctx.stroke();
             });
 
-            // 세포 그리기
+            // 3. 세포 렌더링
             cells.forEach(cell => {
+                // 세포질
                 ctx.beginPath();
                 ctx.arc(cell.x, cell.y, cell.radius, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(14, 165, 233, 0.35)'; // 파란색 투명 세포
+                ctx.fillStyle = 'rgba(14, 165, 233, 0.28)';
                 ctx.fill();
                 ctx.strokeStyle = '#38bdf8';
-                ctx.lineWidth = 3;
+                ctx.lineWidth = 2.5;
                 ctx.stroke();
 
-                // 핵 표현
+                // 핵
                 ctx.beginPath();
-                ctx.arc(cell.x, cell.y, cell.radius * 0.35, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(56, 189, 248, 0.6)';
+                ctx.arc(cell.x, cell.y, cell.radius * 0.38, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.7)';
                 ctx.fill();
             });
 
-            // 외곽선 다시 그리기 (세포보다 위에 보이도록)
-            ctx.beginPath();
-            ctx.arc(cx, cy, maxRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = organismStage === 5 ? '#38bdf8' : (organismStage === 3 ? '#c084fc' : '#34d399');
-            ctx.lineWidth = 4;
-            ctx.setLineDash([8, 6]); // 점선
-            ctx.stroke();
-            ctx.setLineDash([]); // 실선으로 원복
+            // 4. 손 포인터 UI (화면에 시각화)
+            if (handLandmarks) {
+                let indexTip = handLandmarks[8];
+                let ix = (1 - indexTip.x) * canvas.width;
+                let iy = indexTip.y * canvas.height;
+
+                ctx.beginPath();
+                ctx.arc(ix, iy, 8, 0, Math.PI * 2);
+                ctx.fillStyle = '#38bdf8';
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
         }
 
         function loop() {
-            updatePhysics();
-            draw();
+            update();
+            render();
             requestAnimationFrame(loop);
         }
+
+        resetGame();
+        loop();
     </script>
 </body>
 </html>

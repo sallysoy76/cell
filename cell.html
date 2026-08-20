@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RE: SCIENCE LAB - 세포 분열과 물질 교환</title>
+    <title>RE: SCIENCE LAB - 세포 분열과 물질 수송</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- MediaPipe Hands -->
@@ -11,14 +11,35 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
-        body { font-family: 'NotoSansKR', sans-serif; background-color: #05050a; color: #f8fafc; overflow: hidden; }
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #05050a; color: #f8fafc; overflow: hidden; margin: 0; padding: 0; }
         .glass { background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        /* 비디오 배경 설정 */
+        #webcam {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* 화면에 꽉 차게 */
+            z-index: 0; /* 가장 아래 레이어 */
+        }
+        /* 캔버스를 비디오 위에 배치 */
+        #simCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1; /* 비디오 바로 위 레이어 */
+        }
+        /* UI 요소들이 비디오/캔버스 위에 오도록 z-index 설정 */
+        header, main > div, footer { z-index: 10; position: relative; }
     </style>
 </head>
-<body class="w-screen h-screen flex flex-col justify-between p-4">
+<body class="w-screen h-screen flex flex-col justify-between p-0">
 
-    <!-- 상단 대시보드 (HUD) -->
-    <header class="w-full glass rounded-2xl p-4 flex justify-between items-center z-10 shadow-lg">
+    <!-- 상단 대시보드 (HUD) - p-4에서 p-0으로 margin 제거 -->
+    <header class="w-full glass p-4 flex justify-between items-center z-10 shadow-lg mt-4 mx-4 rounded-2xl">
         <div class="flex items-center space-x-4">
             <h1 class="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400">RE: SCIENCE LAB</h1>
             <div id="mode-badge" class="px-3 py-1 bg-cyan-500/20 border border-cyan-500/50 rounded-full text-cyan-300 text-xs font-bold">
@@ -31,7 +52,7 @@
         
         <div class="flex items-center space-x-6 text-sm">
             <div>세포 수: <span id="cell-count" class="font-bold text-cyan-400">1</span>개</div>
-            <div>혈관 수: <span id="vessel-count" class="font-bold text-emerald-400">0</span>개</div>
+            <div>혈관 수: <span id="vessel-count" class="font-bold text-emerald-400">1</span>개</div> <!-- 초기값 1로 변경 -->
             <div id="timer-box" class="hidden">남은 시간: <span id="timer" class="font-bold text-amber-400 text-lg">30</span>초</div>
             <div class="bg-slate-800 px-4 py-1.5 rounded-xl border border-slate-700">
                 ATP 점수: <span id="score" class="font-black text-emerald-400 text-lg">0</span>
@@ -39,16 +60,16 @@
         </div>
     </header>
 
-    <!-- 메인 시뮬레이션 영역 -->
-    <main class="relative flex-1 my-3 flex items-center justify-center overflow-hidden rounded-3xl glass border border-slate-800">
-        <!-- 캔버스 -->
-        <canvas id="simCanvas" class="absolute inset-0 w-full h-full"></canvas>
-
-        <!-- 웹캠 비디오 (숨김 처리) -->
-        <video id="webcam" class="hidden" playsinline></video>
+    <!-- 메인 시뮬레이션 영역 (비디오와 캔버스를 포함) -->
+    <main class="relative flex-1 my-3 flex items-center justify-center overflow-hidden rounded-3xl glass border border-slate-800 mx-4">
+        <!-- 웹캠 비디오 (배경으로 설정) - class="hidden" 제거 -->
+        <video id="webcam" playsinline></video>
+        
+        <!-- 캔버스 (비디오 위에 세포 그리기) -->
+        <canvas id="simCanvas"></canvas>
 
         <!-- 안내 오버레이 -->
-        <div id="overlay-msg" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 glass px-6 py-2.5 rounded-full text-sm font-medium text-slate-300 shadow-xl border border-white/10 pointer-events-none">
+        <div id="overlay-msg" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 glass px-6 py-2.5 rounded-full text-sm font-medium text-slate-300 shadow-xl border border-white/10 pointer-events-none z-20">
             웹캠 연결 대기 중... 손을 화면에 보여주세요!
         </div>
 
@@ -81,7 +102,7 @@
     </main>
 
     <!-- 하단 조작 컨트롤 패널 -->
-    <footer class="w-full glass rounded-2xl p-3 flex justify-center items-center space-x-4 z-10">
+    <footer class="w-full glass rounded-2xl p-3 flex justify-center items-center space-x-4 z-10 mb-4 mx-4">
         <button onclick="setMode('practice')" id="btn-practice" class="px-5 py-2.5 rounded-xl font-bold text-sm bg-cyan-500 text-slate-950 shadow-lg transition">
             1. 연습 모드 (자유)
         </button>
@@ -124,7 +145,7 @@
             canvas.height = canvas.parentElement.clientHeight;
         }
         window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        // 초기화 시 resizeCanvas() 호출은 나중에 비디오가 로드될 때로 미룸
 
         function initGame() {
             cells = [{
@@ -134,11 +155,10 @@
                 vx: (Math.random() - 0.5) * 0.8,
                 vy: (Math.random() - 0.5) * 0.8
             }];
-            vessels = [];
+            vessels = [{ x: canvas.width / 2 + 100, y: canvas.height / 2 + 50, radius: 14 }]; // 초기 혈관 1개 추가
             score = 0;
             organismStage = 1;
         }
-        initGame();
 
         function setMode(mode) {
             currentMode = mode;
@@ -239,21 +259,27 @@
             }
         });
 
-        const camera = new Camera(videoElement, {
-            onFrame: async () => {
-                if (!isProcessing) {
-                    isProcessing = true;
-                    await hands.send({ image: videoElement });
-                }
-            },
-            width: 480,
-            height: 270
-        });
-        camera.start().catch(() => {
-            overlayMsg.innerText = "웹캠 권한이 거부되었거나 카메라를 사용할 수 없습니다.";
+        // 비디오 데이터 로드 완료 후 시뮬레이션 시작
+        videoElement.addEventListener('loadedmetadata', () => {
+            resizeCanvas();
+            initGame();
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    if (!isProcessing) {
+                        isProcessing = true;
+                        await hands.send({ image: videoElement });
+                    }
+                },
+                width: 480,
+                height: 270
+            });
+            camera.start().catch(() => {
+                overlayMsg.innerText = "웹캠 권한이 거부되었거나 카메라를 사용할 수 없습니다.";
+            });
+            loop(); // 메인 루프 시작
         });
 
-        // 물리 연산 및 메인 루프
+        // 물리 연산
         function updatePhysics() {
             let maxRadius = Math.min(canvas.width, canvas.height) * 0.42;
             let cx = canvas.width / 2;
@@ -358,26 +384,20 @@
             document.getElementById('score').innerText = score;
         }
 
+        // 그리기 연산
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             let cx = canvas.width / 2;
             let cy = canvas.height / 2;
             let maxRadius = Math.min(canvas.width, canvas.height) * 0.42;
 
-            // 외곽선 (개체 성장 단계별 윤곽)
-            ctx.beginPath();
-            ctx.arc(cx, cy, maxRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = organismStage === 5 ? '#38bdf8' : (organismStage === 3 ? '#c084fc' : '#34d399');
-            ctx.lineWidth = 4;
-            ctx.setLineDash([8, 6]);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
+            // 외곽선 (개체 성장 단계별 윤곽) - z-index 최상위 유지를 위해 나중에 그림
+            
             // 혈관 그리기
             vessels.forEach(v => {
                 ctx.beginPath();
                 ctx.arc(v.x, v.y, v.radius, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(239, 68, 68, 0.85)';
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.85)'; // 빨간색 혈관
                 ctx.fill();
                 ctx.strokeStyle = '#fca5a5';
                 ctx.lineWidth = 2;
@@ -388,7 +408,7 @@
             cells.forEach(cell => {
                 ctx.beginPath();
                 ctx.arc(cell.x, cell.y, cell.radius, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(14, 165, 233, 0.35)';
+                ctx.fillStyle = 'rgba(14, 165, 233, 0.35)'; // 파란색 투명 세포
                 ctx.fill();
                 ctx.strokeStyle = '#38bdf8';
                 ctx.lineWidth = 3;
@@ -400,6 +420,15 @@
                 ctx.fillStyle = 'rgba(56, 189, 248, 0.6)';
                 ctx.fill();
             });
+
+            // 외곽선 다시 그리기 (세포보다 위에 보이도록)
+            ctx.beginPath();
+            ctx.arc(cx, cy, maxRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = organismStage === 5 ? '#38bdf8' : (organismStage === 3 ? '#c084fc' : '#34d399');
+            ctx.lineWidth = 4;
+            ctx.setLineDash([8, 6]); // 점선
+            ctx.stroke();
+            ctx.setLineDash([]); // 실선으로 원복
         }
 
         function loop() {
@@ -407,7 +436,6 @@
             draw();
             requestAnimationFrame(loop);
         }
-        loop();
     </script>
 </body>
 </html>
